@@ -42,7 +42,7 @@
 #       with:
 #         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-name: 'Terraform'
+name: 'Terraform Azure CI/CD'
 
 on:
   push:
@@ -54,54 +54,58 @@ permissions:
 
 jobs:
   terraform:
-    name: 'Terraform'
+    name: 'Terraform Workflow'
     runs-on: ubuntu-latest
     environment: production
 
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
 
     steps:
-    # Checkout the repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v4
+      # 1️⃣ Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v1
-      with:
-        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-    # Azure login using Service Principal	
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: |
-          {
-            "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
-            "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
-            "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
-            "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          }
+      # 2️⃣ Setup Terraform CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
-    - name: Terraform Init
-      run: terraform init
+      # 3️⃣ Azure login using Service Principal via creds JSON
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          auth-type: SERVICE_PRINCIPAL
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+          enable-AzPSSession: false
+          environment: azurecloud
+          allow-no-subscriptions: false
 
-    # Checks that all Terraform configuration files adhere to a canonical format
-    - name: Terraform Format
-      run: terraform fmt
+      # 4️⃣ Terraform Init
+      - name: Terraform Init
+        run: terraform init
 
-    - name: Terraform Validate
-      run: terraform validate
+      # 5️⃣ Terraform Format Check
+      - name: Terraform Format Check
+        run: terraform fmt -check
 
-    # Generates an execution plan for Terraform
-    - name: Terraform Plan
-      run: terraform plan -input=false -var="azregion=EastUS"
+      # 6️⃣ Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
 
-      # On push to "main", build or change infrastructure according to Terraform configuration files
-      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/"main"' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false
+      # 7️⃣ Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan -input=false -var-file="terraform.tfvars"
+
+      # 8️⃣ Terraform Apply (only on push to main)
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
