@@ -1,4 +1,4 @@
 locals {
-    name = "HelloWorld"
-  
+  name = "HelloWorld"
+
 }

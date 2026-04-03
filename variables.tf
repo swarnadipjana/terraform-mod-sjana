@@ -1,4 +1,4 @@
 variable "azregion" {
   type = string
-  
+
 }
